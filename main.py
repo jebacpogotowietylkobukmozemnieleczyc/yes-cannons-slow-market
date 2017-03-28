@@ -3,6 +3,8 @@ import itertools
 
 frontier_no = 0
 frontiers = {}
+breeze = {}
+possible_world = {}
 
 
 # def check(direction, i, j, type, map):
@@ -24,7 +26,16 @@ def check(i, j, map):
 
 def check2(i, j, map, func):
     if 0 <= i < len(map) and 0 <= j < len(map[0]):
-        func(i, j, map)
+        return func(i, j, map)
+    return False
+
+
+def check_neighbours(i, j, map, func):
+    return \
+        check2(i - 1, j, map, func) or \
+        check2(i, j + 1, map, func) or \
+        check2(i + 1, j, map, func) or \
+        check2(i, j - 1, map, func)
 
 
 # def create_frontier(i,j,map):
@@ -42,11 +53,13 @@ def create_f(i, j, map):
             map[ele[0], ele[1]] = str(frontier_no)
             frontiers[frontier_no].append(ele)
         del frontiers[previous_frontier_no]
+        breeze[frontier_no].extend(breeze[previous_frontier_no])
+        del breeze[previous_frontier_no]
 
 
 fi = open("tests/uncertainty1.in", "r+")
 input_file = fi.read()
-print(input_file)
+# print(input_file)
 input_file = input_file.split()
 # print("Input file String is : \n", input_file)
 fo = open("tests/uncertainty1.out", "r+")
@@ -54,17 +67,19 @@ output_file = fo.read()
 print(output_file)
 output_file = output_file.split()
 # print("Output file String is : \n", output_file)
-print(fo.read())
+# print(fo.read())
 
 y = input_file[0]
 x = input_file[1]
-probability_pit = input_file[2]
+# probability_pit = int(input_file[2])
+probability_pit = 0.1
+negative_probability_pit = 1 - probability_pit
 
 # print(list(itertools.product('01', repeat=3)))
 # print(y)
 world = np.asarray([list(row) for row in input_file[3:]])
 
-print(world)
+# print(world)
 
 compute = np.ones([int(y), int(x)])
 
@@ -89,11 +104,10 @@ for i, row in enumerate(world):
     for j, element in enumerate(row):
         if element == 'B':
             frontiers[frontier_no] = []
+            breeze[frontier_no] = []
+            breeze[frontier_no].append((i, j))
             compute[i, j] = 0
-            check2(i - 1, j, world, create_f)
-            check2(i, j + 1, world, create_f)
-            check2(i + 1, j, world, create_f)
-            check2(i, j - 1, world, create_f)
+            check_neighbours(i, j, world, create_f)
             # if check(i - 1, j, world):
             #     # if world[i - 1, j] == '?':
             #     #
@@ -112,16 +126,55 @@ for i, row in enumerate(world):
             #         world[i, j - 1] = str(frontier_no)
             frontier_no += 1
 
-print(compute)
-print(world)
+# print(compute)
+# print(world)
+# print(frontiers)
+# print(breeze)
+# possible_world = []
+
+for frontier_key in frontiers:
+    possible_world[frontier_key] = []
+    for product in itertools.product('01', repeat=len(frontiers[frontier_key])):
+        # print(world)
+        frontier_value = frontiers[frontier_key]
+        for i, element in enumerate(product):
+            world[frontier_value[i][0], frontier_value[i][1]] = element
+        possible = True
+        for bree in breeze[frontier_key]:
+            possible = possible and check_neighbours(bree[0], bree[1], world, lambda i, j, map: map[i, j] == '1')
+        if possible:
+            possible_world[frontier_key].append(product)
+            # print(world)
+            # print(world)
+print(possible_world)
 print(frontiers)
 
 for frontier_key in frontiers:
-    for product in itertools.product('01', repeat=len(frontiers[frontier_key])):
-        print(world)
-        frontier_value = frontiers[frontier_key]
-        for a, el in enumerate(product):
-            world[frontier_value[a][0], frontier_value[a][1]] = el
-        print(world)
+    for i, element in enumerate(frontiers[frontier_key]):
+        sum_hole_exist = 0
+        sum_hole_not_exist = 0
+
+        for possible in possible_world[frontier_key]:
+            multipy = 1
+            print(possible)
+            for j, hole_frontier in enumerate(possible):
+                if i != j:
+                    if hole_frontier == '1':
+                        multipy *= probability_pit
+                    else:
+                        multipy *= negative_probability_pit
+            if possible[i] == '1':
+                sum_hole_exist += multipy
+            else:
+                sum_hole_not_exist += multipy
+        hole_exist = sum_hole_exist * probability_pit
+        hole_not_exist = sum_hole_not_exist * negative_probability_pit
+        alpha = 1 / (hole_exist + hole_not_exist)
+        print(alpha)
+        hole_exist *= alpha
+        hole_not_exist *= alpha
+        compute[element[0], element[1]] = round(hole_exist, 2)
+
+print(compute)
 
 fo.close()
